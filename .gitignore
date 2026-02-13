@@ -1,0 +1,15 @@
+.DS_Store
+__pycache__/
+
+
+src/ocr_generator/output/
+
+src/seed/seed_data/
+src/seed/update_glotlid/google_fonts_repo
+src/seed/update_glotlid/googlefonts_output
+
+# fonts
+src/fonts/fonts_data/*
+src/fonts/fonts_main
+src/fonts/google_fonts_main.zip
+!src/fonts/fonts_data/fonts_data.txt
