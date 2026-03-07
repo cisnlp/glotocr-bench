@@ -28,7 +28,8 @@ features = Features({
     "text": Value("string"),
     "img_old_document": Image(),
     "img_plain": Image(),
-    "source": Value("string")
+    "source": Value("string"),
+    "script": Value("string"),
 })
 
 for script in scripts:
@@ -61,7 +62,8 @@ for script in scripts:
             "text": r["text"],
             "img_old_document": PILImage.open(old_img).convert("RGB"),
             "img_plain": PILImage.open(plain_img).convert("RGB"),
-            "source": r["source"]
+            "source": r["source"],
+            "script": script
         })
 
         count += 1

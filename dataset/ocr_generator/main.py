@@ -16,8 +16,8 @@ SELECTED_PROFILES = ["PLAIN", "OLD_DOCUMENT"]
 
 def main():
     csv_files = [f for f in Path(CSV_DIR).glob("*.csv") if f.stat().st_size > 0]
-    # csv_files = [f for f in csv_files if any(k.lower() in f.name.lower() for k in ['Vith'])]  # filter
-
+    csv_files = [f for f in csv_files if any(k.lower() in f.name.lower() for k in ['Gujr'])]  # filter
+    # csv_files = [f for f in csv_files if not any(k.lower() in f.name.lower() for k in ['Latn', 'Gujr'])] # filter
     for csv_file in csv_files:
 
         script = csv_file.stem

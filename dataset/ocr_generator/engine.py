@@ -44,22 +44,78 @@ def get_supported_chars(font_path):
     return set(chr(c) for c in cmap.keys())
 
 
+def coverage_score(sentence, supported_chars):
+    score = 0
+    for c in sentence:
+        if c in supported_chars:
+            score += 1
+        elif unicodedata.category(c) in ("Zs", "Cf", "Po"):
+            # allow spaces and punctuation
+            score += 1
+    return score
+
+
+def font_can_render(sentence, font_path):
+    """
+    Ensure shaping works and glyphs exist in FreeType.
+    """
+
+    try:
+        face, infos, positions, _ = shape_text(sentence, font_path)
+
+        if face is None or not infos:
+            return False
+
+        for info in infos:
+            glyph_id = info.codepoint
+
+            if glyph_id >= face.num_glyphs:
+                return False
+
+            try:
+                face.load_glyph(glyph_id)
+            except:
+                return False
+
+        return True
+
+    except Exception:
+        return False
+
+
 def choose_best_font(sentence, fonts):
-    best = []
-    max_cov = 0
-
-    for font in fonts:
-        coverage = sum(1 for c in sentence if c in font["supported"])
-        if coverage > max_cov:
-            max_cov = coverage
-            best = [font]
-        elif coverage == max_cov:
-            best.append(font)
-
-    if not best:
+    if not sentence:
         return None
 
-    return random.choice(best)
+    best_fonts = []
+    max_score = 0
+
+    # ---- Pass 1: Unicode coverage
+    for font in fonts:
+
+        score = coverage_score(sentence, font["supported"])
+
+        if score > max_score:
+            max_score = score
+            best_fonts = [font]
+
+        elif score == max_score:
+            best_fonts.append(font)
+
+    if not best_fonts:
+        return None
+
+    # ---- Pass 2: HarfBuzz + FreeType validation
+    valid_fonts = []
+
+    for font in best_fonts:
+        if font_can_render(sentence, font["path"]):
+            valid_fonts.append(font)
+
+    if not valid_fonts:
+        return None
+
+    return random.choice(valid_fonts)
 
 
 # -------------------------------------------------
@@ -132,6 +188,7 @@ def shape_text(text, font_path):
 
     hb_face = hb.Face(fontdata)
     hb_font = hb.Font(hb_face)
+    hb.ot_font_set_funcs(hb_font)
 
     hb_font.scale = (
         face.size.x_ppem << 6,
@@ -143,7 +200,10 @@ def shape_text(text, font_path):
     buf.guess_segment_properties()
     hb.shape(hb_font, buf)
 
-    return face, buf.glyph_infos, buf.glyph_positions, buf.direction
+    infos = buf.glyph_infos
+    positions = buf.glyph_positions
+
+    return face, infos, positions, buf.direction
 
 
 def measure_text_width(text, font_path):
@@ -276,8 +336,6 @@ def render_face(face, lines, font_path, profile):
     for line in lines:
 
         face, infos, positions, line_direction = shape_text(line, font_path)
-        if not positions:
-            continue
 
         line_width = sum(pos.x_advance for pos in positions) >> 6
 
@@ -295,15 +353,7 @@ def render_face(face, lines, font_path, profile):
         )
 
         for info, pos in zip(infos, positions):
-
-            if info.codepoint >= face.num_glyphs:
-                continue
-
-            try:
-                face.load_glyph(info.codepoint,
-                                freetype.FT_LOAD_RENDER)
-            except freetype.FT_Exception:
-                continue
+            face.load_glyph(info.codepoint, freetype.FT_LOAD_RENDER)
 
             bitmap = face.glyph.bitmap
             w, h = bitmap.width, bitmap.rows
