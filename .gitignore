@@ -16,3 +16,6 @@ dataset/fonts/google_fonts_main.zip
 # ocr generator
 dataset/ocr_generator/output
 dataset/ocr_generator/parquet_output
+
+# evaluation results
+evaluation/metrics/res
