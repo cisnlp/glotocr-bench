@@ -5,248 +5,155 @@ from collections import defaultdict
 from tqdm import tqdm
 
 from configs import MODELS, DATASET_ROOT, RESULT_DIR, EXTRACTORS
-from utils import (
-    normalize_text,
-    cer,
-    detect_script,
-    save_json,
-)
+from utils import normalize_text, cer, detect_script, save_json
 
 
+# ── thresholds that drive every acc metric ────────────────────────────────────
+ACC_THRESHOLDS = [0.00, 0.02, 0.05, 0.10]
+MAJOR_SCRIPTS  = {"Latn", "Arab", "Cyrl", "Deva"}
+
+# ── resource tiers ────────────────────────────────────────────────────────────
+HIGH_SCRIPTS = {"Latn"}
+MID_SCRIPTS  = {"Arab", "Cyrl", "Deva", "Hani", "Jpan", "Hang", "Grek", "Hebr", "Thai"}
+
+
+# ── helpers ───────────────────────────────────────────────────────────────────
+def _acc_keys():
+    return [f"Acc@{t:.2f}" for t in ACC_THRESHOLDS]
+
+
+def _make_accumulator():
+    return {"samples": 0, "cer_sum": 0.0, "script_correct": 0,
+            **{k: 0 for k in _acc_keys()}}
+
+
+def _update(acc, c, pred_script=None, gt_script=None):
+    acc["samples"]  += 1
+    acc["cer_sum"]  += c
+    for t, k in zip(ACC_THRESHOLDS, _acc_keys()):
+        if c <= t:
+            acc[k] += 1
+    if pred_script is not None:
+        acc["script_correct"] += int(pred_script == gt_script)
+
+
+def _finalize(acc, include_script_acc=True):
+    n = acc["samples"]
+    result = {
+        "samples":    n,
+        "CER":        acc["cer_sum"] / n,
+        **{k: acc[k] / n for k in _acc_keys()},
+    }
+    if include_script_acc:
+        result["ScriptAcc"] = acc["script_correct"] / n
+    return result
+
+
+def _macro(results):
+    keys = ["CER"] + _acc_keys() + ["ScriptAcc"]
+    n = len(results)
+    return {k: sum(v[k] for v in results.values()) / n for k in keys}
+
+
+def _tier_avg(script_results, tier_scripts):
+    """Average metrics over scripts present in both tier_scripts and script_results."""
+    subset = {s: v for s, v in script_results.items() if s in tier_scripts}
+    return _macro(subset) if subset else {}
+
+
+# ── data loading ──────────────────────────────────────────────────────────────
 def load_model_dataset(model_dir):
-
     print("  • Searching parquet files")
-
     parquet_files = glob.glob(os.path.join(model_dir, "*.parquet"))
-
     print(f"  • Found {len(parquet_files)} parquet files")
-
-    dfs = []
-
-    for p in tqdm(parquet_files, desc="  • Loading parquet"):
-        dfs.append(pd.read_parquet(p))
-
-    df = pd.concat(dfs, ignore_index=True)
-
+    dfs = [pd.read_parquet(p) for p in tqdm(parquet_files, desc="  • Loading parquet")]
+    df  = pd.concat(dfs, ignore_index=True)
     print(f"  • Loaded {len(df)} rows")
-
     return df
 
 
+# ── evaluation ────────────────────────────────────────────────────────────────
 def evaluate_model(model):
+    print(f"\n{'='*30}\nEvaluating model: {model}\n{'='*30}")
 
-    print("\n==============================")
-    print("Evaluating model:", model)
-    print("==============================")
-
-    model_dir = os.path.join(DATASET_ROOT, model)
-
-    print("Stage 1: Loading dataset")
-    df = load_model_dataset(model_dir)
-
+    df       = load_model_dataset(os.path.join(DATASET_ROOT, model))
     extractor = EXTRACTORS[model]
 
+    script_acc   = defaultdict(_make_accumulator)
+    language_acc = defaultdict(_make_accumulator)          # key: (script, lang)
+    script_conf  = defaultdict(lambda: defaultdict(int))
+    script_exs   = defaultdict(list)
+    total_acc    = _make_accumulator()
+
     print("Stage 2: Running evaluation")
-
-    script_metrics = defaultdict(lambda: {
-        "samples": 0,
-        "cer_sum": 0.0,
-        "exact": 0,
-        "acc02": 0,
-        "acc10": 0,
-        "script_correct": 0,
-    })
-
-    script_confusion = defaultdict(lambda: defaultdict(int))
-
-    language_metrics = defaultdict(lambda: {
-        "samples": 0,
-        "cer_sum": 0.0,
-        "exact": 0,
-        "acc02": 0,
-        "acc10": 0
-    })
-
-    major_scripts = {"Latn", "Arab", "Cyrl", "Deva"}
-
-    total_samples = 0
-    total_exact = 0
-    total_acc02 = 0
-    total_acc10 = 0
-    total_script_correct = 0
-    total_cer = 0
-
-    script_examples = defaultdict(list)
-
     for _, row in tqdm(df.iterrows(), total=len(df), desc="  • Evaluating samples"):
-
-        gt_raw = row["text"]
-        gt = normalize_text(gt_raw)
-
-        pred_raw = row["markdown"]
-        pred = extractor(pred_raw)
-
-        script = row["script"]
+        gt       = normalize_text(row["text"])
+        pred     = extractor(row["markdown"])
+        script   = row["script"]
         language = row["language"]
-
-        c = cer(pred, gt)
-
+        c        = cer(pred, gt)
         pred_script = detect_script(pred)
 
-        total_samples += 1
+        _update(script_acc[script], c, pred_script, script)
+        _update(total_acc,          c, pred_script, script)
+        script_conf[script][pred_script] += 1
 
-        script_metrics[script]["samples"] += 1
-        script_metrics[script]["cer_sum"] += c
-        total_cer += c
+        if script in MAJOR_SCRIPTS:
+            _update(language_acc[(script, language)], c)
 
-        if c == 0:
-            total_exact += 1
-            script_metrics[script]["exact"] += 1
+        script_exs[script].append(
+            {"gt_raw": row["text"], "pred_raw": row["markdown"],
+             "gt_norm": gt, "pred_norm": pred, "cer": c}
+        )
 
-        if c <= 0.02:
-            total_acc02 += 1
-            script_metrics[script]["acc02"] += 1
-
-        if c <= 0.10:
-            total_acc10 += 1
-            script_metrics[script]["acc10"] += 1
-
-        if pred_script == script:
-            total_script_correct += 1
-            script_metrics[script]["script_correct"] += 1
-
-        # Script confusion tracking
-        script_confusion[script][pred_script] += 1
-
-        # Language metrics for major scripts
-        if script in major_scripts:
-
-            language_metrics[(script, language)]["samples"] += 1
-            language_metrics[(script, language)]["cer_sum"] += c
-
-            if c == 0:
-                language_metrics[(script, language)]["exact"] += 1
-
-            if c <= 0.02:
-                language_metrics[(script, language)]["acc02"] += 1
-
-            if c <= 0.10:
-                language_metrics[(script, language)]["acc10"] += 1
-
-        # Save examples for debugging
-        script_examples[script].append({
-            "gt_raw": gt_raw,
-            "pred_raw": pred_raw,
-            "gt_norm": gt,
-            "pred_norm": pred,
-            "cer": c
-        })
-
-    print("Stage 3: Computing per-script metrics")
-
-    script_results = {}
-
-    for s, m in script_metrics.items():
-
-        script_results[s] = {
-            "samples": m["samples"],
-            "CER": m["cer_sum"] / m["samples"],
-            "ExactAcc": m["exact"] / m["samples"],
-            "Acc@0.02": m["acc02"] / m["samples"],
-            "Acc@0.10": m["acc10"] / m["samples"],
-            "ScriptAcc": m["script_correct"] / m["samples"],
-        }
-
-    print("Stage 4: Computing language metrics")
-
+    print("Stage 3-4: Finalising per-script and language metrics")
+    script_results   = {s: _finalize(a)              for s, a in script_acc.items()}
     language_results = defaultdict(dict)
+    for (script, lang), a in language_acc.items():
+        language_results[script][lang] = _finalize(a, include_script_acc=False)
 
-    for (script, lang), m in language_metrics.items():
-
-        language_results[script][lang] = {
-            "samples": m["samples"],
-            "CER": m["cer_sum"] / m["samples"],
-            "ExactAcc": m["exact"] / m["samples"],
-            "Acc@0.02": m["acc02"] / m["samples"],
-            "Acc@0.10": m["acc10"] / m["samples"],
-        }
-
-    print("Stage 5: Computing macro metrics")
-
-    macro_cer = sum(v["CER"] for v in script_results.values()) / len(script_results)
-    macro_exact = sum(v["ExactAcc"] for v in script_results.values()) / len(script_results)
-    macro_acc02 = sum(v["Acc@0.02"] for v in script_results.values()) / len(script_results)
-    macro_acc10 = sum(v["Acc@0.10"] for v in script_results.values()) / len(script_results)
-    macro_script_acc = sum(v["ScriptAcc"] for v in script_results.values()) / len(script_results)
-
-    print("Stage 6: Computing micro metrics")
-
-    micro_cer = total_cer / total_samples
-    micro_exact = total_exact / total_samples
-    micro_acc02 = total_acc02 / total_samples
-    micro_acc10 = total_acc10 / total_samples
-    micro_script_acc = total_script_correct / total_samples
-
+    print("Stage 5-6: Computing macro / micro / tier metrics")
+    low_scripts = set(script_results) - HIGH_SCRIPTS - MID_SCRIPTS
     summary = {
-        "model": model,
-        "samples": total_samples,
-        "macro": {
-            "CER": macro_cer,
-            "ExactAcc": macro_exact,
-            "Acc@0.02": macro_acc02,
-            "Acc@0.10": macro_acc10,
-            "ScriptAcc": macro_script_acc
-        },
-        "micro": {
-            "CER": micro_cer,
-            "ExactAcc": micro_exact,
-            "Acc@0.02": micro_acc02,
-            "Acc@0.10": micro_acc10,
-            "ScriptAcc": micro_script_acc
-        }
+        "model":              model,
+        "samples":            total_acc["samples"],
+        "macro":              _macro(script_results),
+        "micro":              _finalize(total_acc),
+        "high_resource":      _tier_avg(script_results, HIGH_SCRIPTS),
+        "mid_resource":       _tier_avg(script_results, MID_SCRIPTS),
+        "low_resource":       _tier_avg(script_results, low_scripts),
     }
 
     print("Stage 7: Saving results")
-
     model_result_dir = os.path.join(RESULT_DIR, model)
-
     os.makedirs(model_result_dir, exist_ok=True)
 
-    save_json(os.path.join(model_result_dir, "summary.json"), summary)
+    save_json(os.path.join(model_result_dir, "summary.json"),        summary)
     save_json(os.path.join(model_result_dir, "script_metrics.json"), script_results)
-    save_json(os.path.join(model_result_dir, "script_confusion.json"), script_confusion)
+    save_json(os.path.join(model_result_dir, "script_confusion.json"), dict(script_conf))
 
-    for script in major_scripts:
-
-        if script in language_results:
-
+    for script, langs in language_results.items():
+        if script in MAJOR_SCRIPTS:
             save_json(
                 os.path.join(model_result_dir, f"language_metrics_{script}.json"),
-                language_results[script]
+                langs,
             )
 
     print("Stage 8: Saving script debug CSVs")
-
     scripts_dir = os.path.join(model_result_dir, "scripts")
     os.makedirs(scripts_dir, exist_ok=True)
-
-    for script, rows in script_examples.items():
-
-        df_script = pd.DataFrame(rows)
-
-        out_path = os.path.join(scripts_dir, f"{script}.csv")
-
-        df_script.to_csv(out_path, index=False)
+    for script, rows in script_exs.items():
+        pd.DataFrame(rows).to_csv(
+            os.path.join(scripts_dir, f"{script}.csv"), index=False
+        )
 
     print("✔ Finished model:", model)
 
 
+# ── entry point ───────────────────────────────────────────────────────────────
 def main():
-
     print("Starting UniOCR evaluation")
-
     os.makedirs(RESULT_DIR, exist_ok=True)
-
     for model in MODELS:
         evaluate_model(model)
 

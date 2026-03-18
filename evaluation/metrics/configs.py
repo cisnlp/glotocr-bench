@@ -3,13 +3,17 @@ import re
 
 DATASET_ROOT = "../../../uniOCR.bench-v1.0-results"
 
-RESULT_DIR = "./res"
+RESULT_DIR = "../res_v1.0"
 
 MODELS = [
-    "dots-ocr+img_plain",
     "glm-ocr-v2+img_plain",
+    "dots-ocr-1.5+img_plain",
+    "paddleocr-vl-1.5+img_plain",
+    "gemini-3.1-flash-lite-preview+img_plain",
+    "gpt-4.1+img_plain",
+    "dots-ocr+img_plain",
     "deepseek-ocr2-vllm+img_plain",
-    "paddleocr-vl+img_plain",
+    # "paddleocr-vl+img_plain",
     "olmocr2-vllm+img_plain",
     "nanonets-ocr2+img_plain",
     "firered-ocr+img_plain",
@@ -238,6 +242,18 @@ def extract_deepseek(markdown):
     return text.strip()
 
 
+def extract_glm(markdown):
+    if markdown is None:
+        return ""
+
+    text = str(markdown)
+    """Remove ```markdown ... ``` and plain ``` ... ``` fences, return inner content."""
+    text = re.sub(r"```markdown\s*\n(.*?)```", r"\1", text, flags=re.DOTALL)
+    text = re.sub(r"```\s*\n(.*?)```", r"\1", text, flags=re.DOTALL)
+
+    return text.strip()
+
+
 # ---------- default extractor ----------
 
 def extract_default(markdown):
@@ -253,13 +269,12 @@ def extract_default(markdown):
 EXTRACTORS = {
     "firered-ocr+img_plain": extract_firered,
     "lighton-ocr2+img_plain": extract_lighton,
-    "paddleocr-vl+img_plain": extract_paddleocr,
+    # "paddleocr-vl+img_plain": extract_paddleocr,
     "qwen3-vl-8b+img_plain": extract_qwen3,
     "deepseek-ocr2-vllm+img_plain": extract_deepseek,
-    "nanonets-ocr2+img_plain": extract_default,
-    "dots-ocr+img_plain": extract_default,
-    "glm-ocr-v2+img_plain": extract_default,
-    "hunyuan-ocr+img_plain": extract_default,
-    "olmocr2-vllm+img_plain": extract_default,
-    "rolm-ocr+img_plain": extract_default
+    "glm-ocr-v2+img_plain": extract_glm
 }
+
+for model in MODELS:
+    if model not in EXTRACTORS:
+        EXTRACTORS[model] = extract_default

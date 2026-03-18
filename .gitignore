@@ -18,4 +18,7 @@ dataset/ocr_generator/output
 dataset/ocr_generator/parquet_output
 
 # evaluation results
-evaluation/metrics/res
+evaluation/res_v1.0
+evaluation/tabfigs/*.png
+evaluation/tabfigs/*.pdf
+evaluation/tabfigs/*.tex
