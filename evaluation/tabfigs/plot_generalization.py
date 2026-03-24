@@ -12,7 +12,7 @@ RESULT_DIR  = "../res_v1.0"
 OUTPUT_NAME = "ocr_generalization"
 
 MODEL_NAMES = {
-    "dots-ocr-1.5+img_plain":                  "dots.ocr-1.5",
+    "dots-mocr+img_plain":                      "dots.mocr",
     "paddleocr-vl-1.5+img_plain":              "PaddleOCR-VL-1.5",
     "gemini-3.1-flash-lite-preview+img_plain":  "Gemini 3.1 Flash-Lite",
     "gpt-4.1+img_plain":                        "GPT4.1",
@@ -138,6 +138,8 @@ def main():
 
     legend_handles = []
     for model, high, mid, low, avg in model_data:
+        if 'old' in model or 'hint' in model:
+            continue
         color = color_map[model]
         nice  = MODEL_NAMES.get(model, model)
         legend_handles.append(

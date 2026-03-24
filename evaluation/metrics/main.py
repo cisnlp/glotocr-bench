@@ -15,6 +15,7 @@ MAJOR_SCRIPTS  = {"Latn", "Arab", "Cyrl", "Deva"}
 # ── resource tiers ────────────────────────────────────────────────────────────
 HIGH_SCRIPTS = {"Latn"}
 MID_SCRIPTS  = {"Arab", "Cyrl", "Deva", "Hani", "Jpan", "Hang", "Grek", "Hebr", "Thai"}
+MIN_CHAR = 0
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -69,6 +70,8 @@ def load_model_dataset(model_dir):
     dfs = [pd.read_parquet(p) for p in tqdm(parquet_files, desc="  • Loading parquet")]
     df  = pd.concat(dfs, ignore_index=True)
     print(f"  • Loaded {len(df)} rows")
+    df  = df[df["text"].str.len() >= MIN_CHAR]
+    print(f"  • After filtering short texts: {len(df)} rows")
     return df
 
 

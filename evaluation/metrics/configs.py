@@ -2,15 +2,23 @@ import os
 import re
 
 DATASET_ROOT = "../../../uniOCR.bench-v1.0-results"
+# DATASET_ROOT = "../../../uniOCR-results-with-hint"
 
 RESULT_DIR = "../res_v1.0"
 
 MODELS = [
+    # "gpt-4.1+img_plain_hint",
+    "gpt-4.1+img_plain",
+    # "dots-ocr+img_old_document",
+    # "dots-ocr-1.5+img_old_document",
+    # "glm-ocr-v2+img_old_document",
+    # "gpt-4.1+img_old_document",
+    # "hunyuan-ocr+img_old_document",
+    # "olmocr2-vllm+img_old_document",
     "glm-ocr-v2+img_plain",
     "dots-ocr-1.5+img_plain",
     "paddleocr-vl-1.5+img_plain",
     "gemini-3.1-flash-lite-preview+img_plain",
-    "gpt-4.1+img_plain",
     "dots-ocr+img_plain",
     "deepseek-ocr2-vllm+img_plain",
     # "paddleocr-vl+img_plain",

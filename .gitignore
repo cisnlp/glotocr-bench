@@ -19,6 +19,9 @@ dataset/ocr_generator/parquet_output
 
 # evaluation results
 evaluation/res_v1.0
+evaluation/res_v1.0_hint
 evaluation/tabfigs/*.png
 evaluation/tabfigs/*.pdf
 evaluation/tabfigs/*.tex
+
+
