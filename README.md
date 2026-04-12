@@ -1,2 +1,2 @@
-# uniocr.bench
-UniOCR Benchmark
+# GlotOCR-bench
+GlotOCR Benchmark
