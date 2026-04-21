@@ -1,10 +1,18 @@
 # GlotOCR-bench
 
 <p align="center">
-<a href="https://huggingface.co/datasets/cis-lmu/GlotOCR-bench"><img alt="HuggingFace Benchmark" src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Benchmark-8A2BE2"></a>
-<a href="https://huggingface.co/datasets/cis-lmu/GlotOCR-bench-v1.0-results"><img alt="HuggingFace Results" src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Results-blue"></a>
-<a href="https://huggingface.co/datasets/uv-scripts/ocr"><img alt="HuggingFace OCR Scripts" src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-OCR Scripts-orange"></a>
-<a href="https://arxiv.org/abs/2604.12978"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-2604.12978-b31b1b.svg"></a>
+<a href="https://huggingface.co/datasets/cis-lmu/GlotOCR-bench">
+  <img alt="HuggingFace Benchmark" src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Benchmark-8A2BE2">
+</a>
+<a href="https://huggingface.co/datasets/cis-lmu/GlotOCR-bench-v1.0-results">
+  <img alt="HuggingFace Results" src="https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Model Run Results-blue">
+</a>
+<a href="https://cisnlp.github.io/GlotOCR-bench/">
+  <img alt="Leaderboard" src="https://img.shields.io/badge/%F0%9F%8F%86-Leaderboard-yellow">
+</a>
+<a href="https://arxiv.org/abs/2604.12978">
+  <img alt="arXiv" src="https://img.shields.io/badge/arXiv-2604.12978-b31b1b.svg">
+</a>
 </p>
 
 A multilingual OCR benchmark covering a wide range of writing scripts, designed to evaluate OCR models across hundreds of languages.
